@@ -40,4 +40,5 @@ socket2 = "0.5"
 winapi = { version = "0.3", features = ["winsock2", "ws2def", "ws2tcpip"] }
 
 [build-dependencies]
-slint-build = "1.8" 
+slint-build = "1.8"
+embed-resource = "2.4" 
