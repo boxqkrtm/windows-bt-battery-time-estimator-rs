@@ -24,6 +24,14 @@ windows = { version = "0.58", features = [
     "Win32_System_Diagnostics_ToolHelp",
     "Win32_NetworkManagement_WiFi",
     "Win32_Networking_WinSock",
+    # UWP/WinRT APIs for BluetoothLEDevice
+    "Devices_Bluetooth",
+    "Devices_Bluetooth_Advertisement",
+    "Devices_Bluetooth_GenericAttributeProfile",
+    "Devices_Enumeration",
+    "Foundation",
+    "Foundation_Collections",
+    "Storage_Streams",
 ] }
 bluer = { version = "0.17", optional = true }
 socket2 = "0.5"

@@ -1,3 +1,10 @@
+use slint::{VecModel, SharedString, ModelRc};
+use std::sync::Arc;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use lazy_static::lazy_static;
+use std::sync::Mutex;
+
 slint::slint! {
     export struct DeviceDisplayInfo {
         name: string,
@@ -12,6 +19,7 @@ slint::slint! {
         background: #f5f5f5;
 
         in-out property <[DeviceDisplayInfo]> devices: [];
+        in-out property <bool> is_refreshing: false;
         callback refresh_clicked();
 
         VerticalLayout {
@@ -23,7 +31,7 @@ slint::slint! {
                 alignment: space-between;
                 
                 Text {
-                    text: "블루투스 장치 배터리 상태";
+                    text: "Bluetooth Device Battery Status";
                     font-size: 24px;
                     font-weight: 700;
                     color: #333;
@@ -34,11 +42,11 @@ slint::slint! {
                     height: 35px;
                     
                     Rectangle {
-                        background: #0066cc;
+                        background: is_refreshing ? #666666 : #0066cc;
                         border-radius: 6px;
                         
                         Text {
-                            text: "새로고침";
+                            text: is_refreshing ? "..." : "Refresh";
                             font-size: 14px;
                             color: white;
                             horizontal-alignment: center;
@@ -47,15 +55,17 @@ slint::slint! {
                     }
                     
                     clicked => {
-                        refresh_clicked();
+                        if (!is_refreshing) {
+                            refresh_clicked();
+                        }
                     }
                 }
             }
 
-            // Device List
-            Rectangle {
-                height: 350px;
-                background: transparent;
+            // Device List with proper scrolling
+            Flickable {
+                height: 400px;
+                viewport-height: devices.length * 90px;
                 
                 VerticalLayout {
                     spacing: 10px;
@@ -86,7 +96,7 @@ slint::slint! {
                                 }
                                 
                                 Text {
-                                    text: "배터리 잔량: " + device.battery_percentage;
+                                    text: "Battery Level: " + device.battery_percentage;
                                     font-size: 14px;
                                     font-weight: 700;
                                     color: #0066cc;
@@ -97,7 +107,7 @@ slint::slint! {
                                 alignment: center;
                                 
                                 Text {
-                                    text: "예상 사용시간";
+                                    text: "Estimated Usage Time";
                                     font-size: 12px;
                                     color: #666;
                                 }
@@ -120,7 +130,7 @@ slint::slint! {
                         border-color: #e0e0e0;
                         
                         Text {
-                            text: "블루투스 장치를 검색 중...";
+                            text: is_refreshing ? "Refreshing devices..." : "Searching for Bluetooth devices...";
                             font-size: 16px;
                             color: #666;
                             horizontal-alignment: center;
@@ -133,17 +143,12 @@ slint::slint! {
     }
 }
 
-use slint::{VecModel, SharedString, ModelRc};
-use std::sync::Arc;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use lazy_static::lazy_static;
-use std::sync::Mutex;
-
 mod bluetooth_battery;
 mod windows_rfcomm;
+mod uwp_bluetooth;
 
 use windows_rfcomm::WindowsRfcommSocket;
+use uwp_bluetooth::get_bluetooth_devices_uwp;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct BluetoothDevice {
@@ -182,9 +187,9 @@ impl BatteryHistory {
         }
 
         match self.change_count {
-            0 => "측정중".to_string(),
-            1 => "대략적".to_string(),
-            _ => "추정치".to_string(),
+            0 => "Measuring".to_string(),
+            1 => "Approximate".to_string(),
+            _ => "Estimated".to_string(),
         }
     }
 }
@@ -195,52 +200,94 @@ lazy_static! {
 
 async fn get_connected_bluetooth_devices() -> Vec<BluetoothDevice> {
     let mut devices = Vec::new();
-    let powershell_devices = get_devices_via_powershell().await;
     
-    for mut device in powershell_devices {
-        if let Some(mac) = extract_mac_address(&device.name) {
-            device.mac_address = mac.clone();
-            
-            // Try RFCOMM battery query
-            if let Ok(battery_level) = query_device_battery_rfcomm(&mac).await {
-                device.battery_level = battery_level;
+    // Try UWP API first (more reliable for battery info)
+    match get_bluetooth_devices_uwp().await {
+        Ok(uwp_devices) => {
+            for (name, mac_address, battery_level) in uwp_devices {
+                let device_type = classify_device_type(&name);
+                
+                // Skip devices classified as "Other"
+                if device_type == "Other" {
+                    continue;
+                }
+                
+                let mut device = BluetoothDevice {
+                    name: name.clone(),
+                    mac_address: mac_address.clone(),
+                    device_type,
+                    battery_level,
+                    battery_estimate: "Measuring".to_string(),
+                    accuracy: "Measuring".to_string(),
+                };
                 
                 if let Some(level) = battery_level {
                     let mut history = BATTERY_HISTORY.lock().unwrap();
-                    let device_history = history.entry(mac.clone()).or_insert_with(BatteryHistory::new);
+                    let device_history = history.entry(mac_address.clone()).or_insert_with(BatteryHistory::new);
                     device.accuracy = device_history.update(level);
-                    device.battery_estimate = format!("{}시간 {}분", 
+                    device.battery_estimate = format!("{}h {}m", 
                         calculate_hours_from_battery(level), 
                         calculate_minutes_from_battery(level));
                 } else {
                     device.accuracy = "N/A".to_string();
                     device.battery_estimate = "N/A".to_string();
                 }
-            } else {
-                // Fallback to BLE GATT if RFCOMM fails
-                if let Ok(battery_level) = query_device_battery_ble(&mac).await {
-                    device.battery_level = battery_level;
-                    
-                    if let Some(level) = battery_level {
-                        let mut history = BATTERY_HISTORY.lock().unwrap();
-                        let device_history = history.entry(mac.clone()).or_insert_with(BatteryHistory::new);
-                        device.accuracy = device_history.update(level);
-                        device.battery_estimate = format!("{}시간 {}분", 
-                            calculate_hours_from_battery(level), 
-                            calculate_minutes_from_battery(level));
-                    } else {
-                        device.accuracy = "N/A".to_string();
-                        device.battery_estimate = "N/A".to_string();
-                    }
-                } else {
-                    device.battery_level = None;
-                    device.accuracy = "N/A".to_string();
-                    device.battery_estimate = "N/A".to_string();
-                }
+                
+                devices.push(device);
             }
         }
-        devices.push(device);
+        Err(e) => {
+            println!("UWP API failed, falling back to PowerShell: {}", e);
+            // Fallback to PowerShell method
+            let powershell_devices = get_devices_via_powershell().await;
+            
+            for mut device in powershell_devices {
+                if let Some(mac) = extract_mac_address(&device.name) {
+                    device.mac_address = mac.clone();
+                    
+                    // Try RFCOMM battery query
+                    if let Ok(battery_level) = query_device_battery_rfcomm(&mac).await {
+                        device.battery_level = battery_level;
+                        
+                        if let Some(level) = battery_level {
+                            let mut history = BATTERY_HISTORY.lock().unwrap();
+                            let device_history = history.entry(mac.clone()).or_insert_with(BatteryHistory::new);
+                            device.accuracy = device_history.update(level);
+                            device.battery_estimate = format!("{}h {}m", 
+                                calculate_hours_from_battery(level), 
+                                calculate_minutes_from_battery(level));
+                        } else {
+                            device.accuracy = "N/A".to_string();
+                            device.battery_estimate = "N/A".to_string();
+                        }
+                    } else {
+                        // Fallback to BLE GATT if RFCOMM fails
+                        if let Ok(battery_level) = query_device_battery_ble(&mac).await {
+                            device.battery_level = battery_level;
+                            
+                            if let Some(level) = battery_level {
+                                let mut history = BATTERY_HISTORY.lock().unwrap();
+                                let device_history = history.entry(mac.clone()).or_insert_with(BatteryHistory::new);
+                                device.accuracy = device_history.update(level);
+                                device.battery_estimate = format!("{}h {}m", 
+                                    calculate_hours_from_battery(level), 
+                                    calculate_minutes_from_battery(level));
+                            } else {
+                                device.accuracy = "N/A".to_string();
+                                device.battery_estimate = "N/A".to_string();
+                            }
+                        } else {
+                            device.battery_level = None;
+                            device.accuracy = "N/A".to_string();
+                            device.battery_estimate = "N/A".to_string();
+                        }
+                    }
+                }
+                devices.push(device);
+            }
+        }
     }
+    
     devices
 }
 
@@ -327,13 +374,18 @@ async fn get_devices_via_powershell() -> Vec<BluetoothDevice> {
                 ) {
                     let device_type = classify_device_type(name);
                     
+                    // Skip devices classified as "Other"
+                    if device_type == "Other" {
+                        continue;
+                    }
+                    
                     devices.push(BluetoothDevice {
                         name: name.to_string(),
                         mac_address: extract_mac_from_instance_id(instance_id).unwrap_or_default(),
                         device_type,
                         battery_level: None,
-                        battery_estimate: "측정중".to_string(),
-                        accuracy: "측정중".to_string(),
+                        battery_estimate: "Measuring".to_string(),
+                        accuracy: "Measuring".to_string(),
                     });
                 }
             }
@@ -380,16 +432,16 @@ fn extract_mac_from_instance_id(instance_id: &str) -> Option<String> {
 fn classify_device_type(name: &str) -> String {
     let name_lower = name.to_lowercase();
     if name_lower.contains("mouse") || name_lower.contains("mx master") {
-        "마우스".to_string()
+        "Mouse".to_string()
     } else if name_lower.contains("keyboard") || name_lower.contains("aula") {
-        "키보드".to_string()
+        "Keyboard".to_string()
     } else if name_lower.contains("headphone") || name_lower.contains("earphone") || 
               name_lower.contains("bn-e100") || name_lower.contains("qcy") {
-        "이어폰".to_string()
+        "Earphone".to_string()
     } else if name_lower.contains("speaker") {
-        "스피커".to_string()
+        "Speaker".to_string()
     } else {
-        "기타".to_string()
+        "Other".to_string()
     }
 }
 
@@ -418,26 +470,38 @@ async fn main() -> Result<(), slint::PlatformError> {
     let ui_handle = ui.as_weak();
     let ui_handle_refresh = ui.as_weak();
 
-    tokio::spawn(async move {
-        let devices = get_connected_bluetooth_devices().await;
-        let device_model: Vec<DeviceDisplayInfo> = devices.iter().map(|d| {
-            DeviceDisplayInfo {
-                name: SharedString::from(&format!("{} ({})", d.name, d.device_type)),
-                battery_percentage: SharedString::from(
-                    d.battery_level.map_or("N/A".to_string(), |b| format!("{}%", b))
-                ),
-                estimated_time: SharedString::from(&format!("{} ({})", d.battery_estimate, d.accuracy)),
-            }
-        }).collect();
+    // Initial load - non-blocking
+    {
+        let ui_handle = ui_handle.clone();
+        tokio::spawn(async move {
+            let devices = get_connected_bluetooth_devices().await;
+            let device_model: Vec<DeviceDisplayInfo> = devices.iter().map(|d| {
+                DeviceDisplayInfo {
+                    name: SharedString::from(&format!("{} ({})", d.name, d.device_type)),
+                    battery_percentage: SharedString::from(
+                        d.battery_level.map_or("N/A".to_string(), |b| format!("{}%", b))
+                    ),
+                    estimated_time: SharedString::from(&format!("{} ({})", d.battery_estimate, d.accuracy)),
+                }
+            }).collect();
 
-        ui_handle.upgrade_in_event_loop(move |ui| {
-            ui.set_devices(ModelRc::new(VecModel::from(device_model)));
-        }).unwrap();
-    });
+            ui_handle.upgrade_in_event_loop(move |ui| {
+                ui.set_devices(ModelRc::new(VecModel::from(device_model)));
+            }).unwrap();
+        });
+    }
 
+    // Refresh callback - non-blocking
     ui.on_refresh_clicked({
         move || {
             let ui_handle = ui_handle_refresh.clone();
+            
+            // Set refreshing state immediately
+            ui_handle_refresh.upgrade_in_event_loop(move |ui| {
+                ui.set_is_refreshing(true);
+            }).unwrap();
+            
+            // Spawn async task for refresh
             tokio::spawn(async move {
                 let devices = get_connected_bluetooth_devices().await;
                 let device_model: Vec<DeviceDisplayInfo> = devices.iter().map(|d| {
@@ -452,6 +516,7 @@ async fn main() -> Result<(), slint::PlatformError> {
 
                 ui_handle.upgrade_in_event_loop(move |ui| {
                     ui.set_devices(ModelRc::new(VecModel::from(device_model)));
+                    ui.set_is_refreshing(false);
                 }).unwrap();
             });
         }
