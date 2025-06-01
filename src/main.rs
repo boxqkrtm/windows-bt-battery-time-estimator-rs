@@ -1,3 +1,5 @@
+#![windows_subsystem = "windows"]
+
 use slint::{VecModel, SharedString, ModelRc};
 use std::sync::Arc;
 use serde::{Deserialize, Serialize};
