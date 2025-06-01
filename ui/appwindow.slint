@@ -1,0 +1,120 @@
+export struct DeviceDisplayInfo {
+    name: string,
+    battery_percentage: string,
+    estimated_time: string,
+}
+
+export component AppWindow inherits Window {
+    title: "Bluetooth Battery Time Estimator";
+    width: 600px;
+    height: 500px;
+    background: #f5f5f5;
+
+    in-out property <[DeviceDisplayInfo]> devices: [];
+    callback refresh_clicked();
+
+    VerticalLayout {
+        padding: 20px;
+        spacing: 15px;
+
+        // Header
+        HorizontalLayout {
+            alignment: space-between;
+            
+            Text {
+                text: "Bluetooth 장치 배터리 상태";
+                font-size: 24px;
+                font-weight: 700;
+                color: #333;
+            }
+            
+            Button {
+                text: "새로고침";
+                font-size: 14px;
+                background: #0066cc;
+                border-radius: 6px;
+                min-width: 80px;
+                height: 35px;
+                
+                clicked => {
+                    refresh_clicked();
+                }
+            }
+        }
+
+        // Device List
+        ScrollView {
+            VerticalLayout {
+                spacing: 10px;
+                
+                for device in devices: Rectangle {
+                    height: 80px;
+                    background: white;
+                    border-radius: 8px;
+                    border-width: 1px;
+                    border-color: #e0e0e0;
+                    drop-shadow-blur: 2px;
+                    drop-shadow-color: #00000010;
+                    
+                    HorizontalLayout {
+                        padding: 15px;
+                        spacing: 15px;
+                        alignment: space-between;
+                        
+                        VerticalLayout {
+                            alignment: start;
+                            spacing: 5px;
+                            
+                            Text {
+                                text: device.name;
+                                font-size: 16px;
+                                font-weight: 600;
+                                color: #444;
+                            }
+                            
+                            Text {
+                                text: "배터리 잔량: " + device.battery_percentage;
+                                font-size: 14px;
+                                font-weight: 700;
+                                color: #0066cc;
+                            }
+                        }
+                        
+                        VerticalLayout {
+                            alignment: center;
+                            
+                            Text {
+                                text: "예상 사용시간";
+                                font-size: 12px;
+                                color: #666;
+                            }
+                            
+                            Text {
+                                text: device.estimated_time;
+                                font-size: 14px;
+                                font-weight: 600;
+                                color: #555;
+                            }
+                        }
+                    }
+                }
+                
+                if devices.length == 0: Rectangle {
+                    height: 100px;
+                    background: white;
+                    border-radius: 8px;
+                    border-width: 1px;
+                    border-color: #e0e0e0;
+                    
+                    Text {
+                        text: "Bluetooth 장치를 검색 중...";
+                        font-size: 16px;
+                        color: #666;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+    }
+} 

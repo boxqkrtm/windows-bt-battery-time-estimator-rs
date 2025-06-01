@@ -1,0 +1,90 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Build and Deployment Guide
+
+## Build System
+
+### Cargo Configuration
+The project uses standard Cargo build system with configuration in [windows-bt-battery-estimator/Cargo.toml](mdc:windows-bt-battery-estimator/Cargo.toml):
+
+- **Edition**: 2021 (latest stable Rust edition)
+- **Target Platform**: Windows (uses Windows-specific Bluetooth APIs via btleplug)
+- **Build Dependencies**: `slint-build` for UI compilation
+
+### Build Process
+1. **Pre-build**: [windows-bt-battery-estimator/build.rs](mdc:windows-bt-battery-estimator/build.rs) compiles Slint UI files
+2. **Main Build**: Cargo compiles Rust source code with UI modules included
+3. **Dependencies**: All crates are fetched and compiled automatically
+
+### Development Commands
+```bash
+# Navigate to project directory
+cd windows-bt-battery-estimator
+
+# Build in debug mode
+cargo build
+
+# Build optimized release
+cargo build --release
+
+# Run application
+cargo run
+
+# Check for errors without building
+cargo check
+
+# Run tests (if any)
+cargo test
+```
+
+## Platform Requirements
+
+### Windows-Specific Dependencies
+- **Windows 10/11**: Required for modern Bluetooth LE support
+- **Bluetooth Adapter**: Must support Bluetooth Low Energy (BLE)
+- **Rust Toolchain**: Latest stable Rust with Windows MSVC toolchain
+
+### Runtime Dependencies
+- **Visual C++ Redistributable**: May be required for some dependencies
+- **Windows Bluetooth Stack**: Must be enabled and functional
+- **Administrator Privileges**: May be required for Bluetooth operations
+
+## Development Workflow
+
+### Project Structure Navigation
+```
+windows-bt-battery-estimator/
+├── src/
+│   └── main.rs              # Main application logic
+├── ui/
+│   └── appwindow.slint      # UI definition
+├── target/                  # Build artifacts (auto-generated)
+├── Cargo.toml              # Project configuration
+├── Cargo.lock              # Dependency lock file
+└── build.rs                # Build script
+```
+
+### Common Development Tasks
+1. **UI Changes**: Modify [windows-bt-battery-estimator/ui/appwindow.slint](mdc:windows-bt-battery-estimator/ui/appwindow.slint) and rebuild
+2. **Logic Changes**: Edit [windows-bt-battery-estimator/src/main.rs](mdc:windows-bt-battery-estimator/src/main.rs)
+3. **Dependency Updates**: Modify [windows-bt-battery-estimator/Cargo.toml](mdc:windows-bt-battery-estimator/Cargo.toml) and run `cargo update`
+
+### Debugging and Testing
+- **Console Output**: Application uses `println!` and `eprintln!` for logging
+- **Bluetooth Testing**: Requires actual Bluetooth devices for full testing
+- **UI Testing**: Slint provides preview capabilities during development
+
+## Deployment Considerations
+
+### Distribution
+- **Single Executable**: Cargo produces a single `.exe` file
+- **Dependencies**: All Rust dependencies are statically linked
+- **Size Optimization**: Use `cargo build --release` for smaller binaries
+
+### Installation
+- No installer required - standalone executable
+- May need to be run with appropriate permissions for Bluetooth access
+- Consider code signing for distribution to avoid Windows security warnings

@@ -1,0 +1,66 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Bluetooth Integration Guide
+
+## Bluetooth Low Energy (BLE) Implementation
+
+### Core Bluetooth Flow
+The Bluetooth functionality in [windows-bt-battery-estimator/src/main.rs](mdc:windows-bt-battery-estimator/src/main.rs) follows this pattern:
+
+1. **Manager Initialization**: Get Bluetooth adapters using `btleplug::platform::Manager`
+2. **Scanning**: Start scan with `ScanFilter::default()` for 5 seconds
+3. **Device Discovery**: Retrieve peripherals and process each one
+4. **Connection**: Connect to each peripheral individually
+5. **Service Discovery**: Discover services to find battery service
+6. **Characteristic Reading**: Read battery level characteristic
+7. **Cleanup**: Disconnect from peripherals and stop scanning
+
+### Battery Service Standards
+- **Battery Service UUID**: `0x180F` (standard Bluetooth SIG service)
+- **Battery Level Characteristic UUID**: `0x2A19` (standard characteristic)
+- **Data Format**: Single byte representing percentage (0-100)
+
+### Error Handling Patterns
+```rust
+// Always handle adapter retrieval errors
+let adapters = match manager.adapters().await {
+    Ok(adapters) => adapters,
+    Err(e) => {
+        eprintln!("Error getting adapters: {}", e);
+        return device_infos;
+    }
+};
+
+// Graceful connection handling
+if let Err(e) = peripheral.connect().await {
+    eprintln!("Error connecting to {}: {}", addr, e);
+    current_device_info.estimated_time = "Connection failed".to_string();
+    device_infos.push(current_device_info);
+    continue;
+}
+```
+
+### Best Practices
+1. **Timeout Management**: Use 5-second scan duration to balance discovery vs. performance
+2. **Resource Cleanup**: Always disconnect from peripherals after reading
+3. **Graceful Degradation**: Continue processing other devices if one fails
+4. **Detailed Logging**: Use `println!` for normal flow, `eprintln!` for errors
+5. **State Validation**: Check connection status before proceeding with operations
+
+### Device Information Structure
+```rust
+pub struct DeviceBatteryInfoRust {
+    pub name: String,                    // Device name or MAC address
+    pub battery_percentage: Option<u8>,  // Battery level (0-100) or None
+    pub estimated_time: String,          // Human-readable time estimate
+}
+```
+
+### Common Issues and Solutions
+- **Empty Peripherals**: Normal on some systems - provide helpful user feedback
+- **Connection Failures**: Retry logic not implemented - fails gracefully instead
+- **Service Discovery**: Some devices may not expose battery service
+- **Read Permissions**: Check characteristic properties before attempting read

@@ -1,0 +1,88 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Slint UI Development Guide
+
+## UI Architecture
+
+### Main UI File
+The user interface is defined in [windows-bt-battery-estimator/ui/appwindow.slint](mdc:windows-bt-battery-estimator/ui/appwindow.slint) using the Slint framework.
+
+### Build Integration
+The UI is compiled into Rust code via [windows-bt-battery-estimator/build.rs](mdc:windows-bt-battery-estimator/build.rs):
+```rust
+fn main() {
+    slint_build::compile("ui/appwindow.slint").unwrap();
+}
+```
+
+### Data Structures
+The UI defines shared data structures that are used by both Slint and Rust:
+```slint
+export struct DeviceDisplayInfo {
+    name: string,
+    battery_percentage: string,
+    estimated_time: string,
+}
+```
+
+## UI Components and Layout
+
+### Window Configuration
+- **Title**: "Windows BT Battery Estimator"
+- **Dimensions**: 400px × 350px
+- **Layout**: Vertical box with padding and spacing
+
+### Main Components
+1. **Refresh Button**: Triggers `refresh_clicked()` callback
+2. **Scrollable Device List**: Displays device information in cards
+3. **Empty State**: Shows message when no devices are found
+
+### Device Card Layout
+Each device is displayed in a card with:
+- Device name/address
+- Battery percentage
+- Time estimate
+- Consistent styling with rounded corners and background
+
+## Rust-Slint Integration
+
+### Including UI Modules
+```rust
+slint::include_modules!(); // Includes AppWindow and DeviceDisplayInfo from UI
+```
+
+### Data Conversion
+Convert between Rust and Slint data structures:
+```rust
+// Convert from Rust struct to Slint struct
+let slint_device = DeviceDisplayInfo {
+    name: rust_device.name.into(),
+    battery_percentage: format_battery_percentage(rust_device.battery_percentage).into(),
+    estimated_time: rust_device.estimated_time.into(),
+};
+```
+
+### Callback Handling
+- **refresh_clicked**: Triggered when user clicks refresh button
+- **Async Operations**: Handle Bluetooth scanning in background while updating UI
+
+## UI Best Practices
+
+### Responsive Design
+- Use `ScrollView` for device lists to handle many devices
+- Consistent spacing and padding throughout
+- Readable font weights for labels
+
+### User Experience
+- Clear loading states and error messages
+- Immediate feedback on button clicks
+- Graceful handling of empty states
+
+### Styling Guidelines
+- Use standard Slint widgets from `std-widgets.slint`
+- Consistent color scheme with `#f0f0f0` backgrounds
+- 4px border radius for modern appearance
+- Proper spacing between elements (5px, 8px, 10px)

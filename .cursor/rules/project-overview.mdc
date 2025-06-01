@@ -1,0 +1,34 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Windows Bluetooth Battery Time Estimator - Project Overview
+
+This is a Rust application that scans for Bluetooth devices and estimates their battery life on Windows systems. The project combines Bluetooth Low Energy (BLE) scanning with a modern GUI interface.
+
+## Project Structure
+
+### Core Application
+- **Main Entry Point**: [windows-bt-battery-estimator/src/main.rs](mdc:windows-bt-battery-estimator/src/main.rs) - Contains the main application logic, Bluetooth scanning, and battery level reading functionality
+- **Build Configuration**: [windows-bt-battery-estimator/Cargo.toml](mdc:windows-bt-battery-estimator/Cargo.toml) - Rust project dependencies and metadata
+- **Build Script**: [windows-bt-battery-estimator/build.rs](mdc:windows-bt-battery-estimator/build.rs) - Compiles the Slint UI files
+
+### User Interface
+- **UI Definition**: [windows-bt-battery-estimator/ui/appwindow.slint](mdc:windows-bt-battery-estimator/ui/appwindow.slint) - Slint-based GUI layout and components
+
+## Key Technologies
+- **Rust**: Core application language
+- **Slint**: Modern GUI framework for the user interface
+- **btleplug**: Cross-platform Bluetooth Low Energy library
+- **Tokio**: Async runtime for handling Bluetooth operations
+- **UUID**: For Bluetooth service and characteristic identification
+
+## Main Features
+1. **Bluetooth Device Scanning**: Discovers nearby BLE devices
+2. **Battery Level Reading**: Reads battery service data from compatible devices
+3. **Time Estimation**: Provides rough battery life estimates
+4. **GUI Interface**: User-friendly interface with refresh functionality
+
+## Architecture
+The application follows an async architecture where the main thread handles the GUI while Bluetooth operations run asynchronously. The Slint UI communicates with the Rust backend through callbacks and shared data structures.

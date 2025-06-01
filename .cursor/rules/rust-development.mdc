@@ -1,0 +1,53 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Rust Development Guidelines
+
+## Code Organization and Patterns
+
+### Main Application Structure
+The core logic is contained in [windows-bt-battery-estimator/src/main.rs](mdc:windows-bt-battery-estimator/src/main.rs) which follows these patterns:
+
+1. **Async/Await Pattern**: All Bluetooth operations use async/await with Tokio runtime
+2. **Error Handling**: Uses `Result<T, E>` types and proper error propagation
+3. **Data Structures**: Custom structs like `DeviceBatteryInfoRust` for internal data representation
+
+### Key Constants and UUIDs
+```rust
+const BATTERY_SERVICE_UUID: Uuid = Uuid::from_u128(0x0000180f_0000_1000_8000_00805f9b34fb);
+const BATTERY_LEVEL_CHARACTERISTIC_UUID: Uuid = Uuid::from_u128(0x00002a19_0000_1000_8000_00805f9b34fb);
+```
+
+### Dependencies Management
+Dependencies are managed in [windows-bt-battery-estimator/Cargo.toml](mdc:windows-bt-battery-estimator/Cargo.toml):
+- `slint`: GUI framework
+- `btleplug`: Bluetooth Low Energy operations
+- `tokio`: Async runtime with "full" features
+- `futures`: Additional async utilities
+- `uuid`: UUID handling with v4 feature
+
+## Coding Standards
+
+### Error Handling
+- Use `match` statements for comprehensive error handling
+- Log errors with `eprintln!` for debugging
+- Gracefully handle connection failures and timeouts
+- Always disconnect from peripherals after operations
+
+### Async Operations
+- Use `tokio::time::sleep` for delays
+- Implement proper timeout handling for Bluetooth operations
+- Use `Arc` for shared state when needed
+
+### Naming Conventions
+- Use descriptive function names like `scan_and_get_device_infos`
+- Prefix internal structs to avoid conflicts (e.g., `DeviceBatteryInfoRust`)
+- Use snake_case for variables and functions
+- Use SCREAMING_SNAKE_CASE for constants
+
+### Memory Management
+- Prefer owned types over references where possible
+- Use `Vec` for dynamic collections
+- Clone data when passing between async contexts
