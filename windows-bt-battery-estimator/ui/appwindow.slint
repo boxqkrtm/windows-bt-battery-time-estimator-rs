@@ -1,0 +1,66 @@
+import { VerticalBox, ScrollView, Button, HorizontalBox } from "std-widgets.slint";
+
+export struct DeviceDisplayInfo {
+    name: string,
+    battery_percentage: string,
+    estimated_time: string,
+}
+
+export component AppWindow inherits Window {
+    title: "Windows BT Battery Estimator";
+    width: 400px;
+    height: 350px;
+
+    in-out property <[DeviceDisplayInfo]> devices: [
+        // Sample data for design preview
+        // { name: "Device A (XX:XX:XX:XX:XX:XX)", battery_percentage: "75%", estimated_time: "7.5 hours remaining" },
+        // { name: "Device B (YY:YY:YY:YY:YY:YY)", battery_percentage: "N/A", estimated_time: "Read failed" },
+        // { name: "Device C (ZZ:ZZ:ZZ:ZZ:ZZ:ZZ)", battery_percentage: "10%", estimated_time: "1.0 hours remaining" }
+    ];
+
+    callback refresh_clicked();
+
+    VerticalBox {
+        padding: 5px;
+        spacing: 5px;
+
+        HorizontalBox {
+            Button {
+                text: "Refresh";
+                clicked => { root.refresh_clicked() }
+            }
+        }
+
+        ScrollView {
+            VerticalBox {
+                spacing: 10px;
+                for device_info in devices : Rectangle {
+                    padding: 8px;
+                    background: #f0f0f0;
+                    border-radius: 4px;
+
+                    VerticalBox {
+                        spacing: 5px;
+                        HorizontalBox {
+                            Text { text: "Device: "; font-weight: 700; }
+                            Text { text: device_info.name; }
+                        }
+                        HorizontalBox {
+                            Text { text: "Battery: "; font-weight: 700; }
+                            Text { text: device_info.battery_percentage; }
+                        }
+                        HorizontalBox {
+                            Text { text: "Estimate: "; font-weight: 700; }
+                            Text { text: device_info.estimated_time; }
+                        }
+                    }
+                }
+                if root.devices.length == 0 : Text {
+                    text: "No devices found or scanned yet. Click Refresh.";
+                    horizontal-alignment: center;
+                    padding: 20px;
+                }
+            }
+        }
+    }
+}
